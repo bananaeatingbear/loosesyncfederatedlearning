@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=1 python3 csgmcmc.py --dir ./csgmcmc/  --batch_size 64 --dataset cifar10
