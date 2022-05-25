@@ -345,14 +345,10 @@ def test_ensemble_model(model_name_list,exp_name='CSGMCMC'):
 #    model_name_list.append(args.dir + '/intel_intel_64_%i.pt'%(m))
 #test_ensemble_model(model_name_list,exp_name='CSGMCMC')
 
+model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_45_10_4500_0_1.pt']
+test_ensemble_model(model_name_list, exp_name=f'CSGMCMC')
 
-### csgmcmc
-num_model = 12 ## this should be 12
-model_name_list = []
-for m in range(num_model):
-    model_name_list.append(args.dir + f'/{args.dataset}_{model}_64_45000{m}.pt')
-    # m = m+3
-test_ensemble_model(model_name_list,exp_name='CSGMCMC')
+
 
 num_model = 10
 for step in range(1,6):
@@ -361,22 +357,18 @@ for step in range(1,6):
 	for m in range(num_model):
 		model_name_list.append( f'./model_checkpoints/{model}_cifar10_45_10_4500_{m}_mcmc_{step}.pt')
 	test_ensemble_model(model_name_list,exp_name=f'FED-{step}round10ensemble')
+	#test_ensemble_model(model_name_list, exp_name=f'CSGMCMC')
+
+### csgmcmc
+num_model = 12 ## this should be 12
+model_name_list = []
+for m in range(num_model):
+    model_name_list.append(args.dir + f'/{args.dataset}_{model}_64_45000{m}.pt')
+    # m = m+3
+test_ensemble_model(model_name_list,exp_name='CSGMCMC')
 	
 model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_45_10_4500_0.pt']
 test_ensemble_model(model_name_list, exp_name=f'fed-avg')
 
 model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_450_1_45000_0.pt']
 test_ensemble_model(model_name_list, exp_name=f'sgd')
-
-model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_20_10_4000_0.pt']
-test_ensemble_model(model_name_list, exp_name=f'fed-avg')
-
-model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_40_10_4000_0_2.pt']
-test_ensemble_model(model_name_list, exp_name=f'fed-avg')
-
-model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_40_10_4000_0_3.pt']
-test_ensemble_model(model_name_list, exp_name=f'fed-avg')
-
-model_name_list = [f'./model_checkpoints/{model}_{args.dataset}_20_20_4000_0.pt']
-test_ensemble_model(model_name_list, exp_name=f'fed-avg')
-

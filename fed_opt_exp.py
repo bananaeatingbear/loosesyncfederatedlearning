@@ -12,6 +12,7 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from tqdm import tqdm
 import copy
+import pytorch_lightning as pl
 
 def get_naming_mid_str():
 	name_string_mid_str = str(args.user_number) + '_' + str(args.num_step) + '_'

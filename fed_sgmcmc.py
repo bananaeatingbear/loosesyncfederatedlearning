@@ -1,5 +1,4 @@
-from whitebox_attack import *
-from blackbox_attack import *
+
 import argparse
 from data import dataset
 from model import *
@@ -13,13 +12,9 @@ from user import *
 from data import *
 from tqdm import tqdm
 import copy
-from fed_attack import *
 from opacus import PrivacyEngine
 from model_utils import *
 from model_utils import _batchnorm_to_groupnorm_new
-from diffmi_attack import diffmi_attack
-from nasr_fed_attack import nasr_fed_attack
-from multi_party_attack import *
 
 
 def get_naming_mid_str():
@@ -431,12 +426,13 @@ def sg_mcmc(user_list,target_model=None):
 		optimizer = user_list[user_idx].optim
 		
 		if (args.local_epochs>1):
-			model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{user_idx}_{args.local_epochs}.pt"
+			model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_0_{args.local_epochs}.pt"
 		else:
-			model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{user_idx}.pt"
+			model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_0_1.pt"
 		
-		checkpoint = torch.load(model_path)
-		model.load_state_dict(checkpoint['model_state_dict'])
+		#checkpoint = torch.load(model_path)
+		#model.load_state_dict(checkpoint['model_state_dict'])
+		model.load_state_dict(torch.load(model_path))
 		#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 		
 	train_acc,test_acc,train_loss,test_loss = get_train_test_acc(user_list=user_list,target_model=user_list[0].model,return_loss=True)
