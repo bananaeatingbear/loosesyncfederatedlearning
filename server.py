@@ -154,7 +154,8 @@ random.seed(args.random_seed)
 
 ### set up model
 if (args.dataset == 'cifar10'):
-	model = ResNet18(num_classes=10)
+	#model = ResNet18(num_classes=10)
+	model = alexnet(num_classes=10)
 else:
 	model = TargetNet(args.dataset, 0, 0)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

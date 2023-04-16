@@ -322,6 +322,8 @@ def test_ensemble_model(model_name_list, exp_name='CSGMCMC'):
 model = 'retina'
 dataset = 'retina'
 
+model_name_list = [f'./model_checkpoints/{model}_{dataset}_subspace.pt']
+test_ensemble_model(model_name_list, exp_name=f'subspace')
 ### csgmcmc
 num_model = 12  ## this should be 12
 model_name_list = []

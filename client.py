@@ -40,7 +40,8 @@ class FlowerClient(fl.client.NumPyClient):
 
 		device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 		if (args.dataset == 'cifar10'):
-			self.model = ResNet18(num_classes=10)
+			#self.model = ResNet18(num_classes=10)
+			self.model = alexnet(num_classes=10)
 		else:
 			self.model = TargetNet(args.dataset, 0, 0)
 		self.model.to(device)

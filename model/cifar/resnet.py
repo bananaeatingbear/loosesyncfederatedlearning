@@ -76,17 +76,17 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10):
+    def __init__(self, block, num_blocks, num_classes=10,num_kernels=None):
         super(ResNet, self).__init__()
         self.in_planes = 64
-
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
+                               stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512*block.expansion, num_classes)
+        self.layer1 = self._make_layer(block, num_kernels[0], num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(block, num_kernels[1], num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(block, num_kernels[2], num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(block, num_kernels[3], num_blocks[3], stride=2)
+        self.linear = nn.Linear(num_kernels[3]*block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -97,19 +97,28 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        #print (x.size())
         out = F.relu(self.bn1(self.conv1(x)))
+        #print (out.size())
         out = self.layer1(out)
+        #print (out.size())
         out = self.layer2(out)
+        #print (out.size())
         out = self.layer3(out)
+        #print (out.size())
         out = self.layer4(out)
+        #print (out.size())
         out = F.avg_pool2d(out, 4)
+        #print (out.size())
         out = out.view(out.size(0), -1)
+        #print (out.size())
         out = self.linear(out)
         return out
 
 
-def ResNet18(num_classes=10):
-    return ResNet(BasicBlock, [2,2,2,2],num_classes=num_classes)
+def ResNet18(num_kernels=[64, 128, 256, 512], num_classes=10):
+	#print(num_kernels)
+	return ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes, num_kernels=num_kernels)
 
 def ResNet34():
     return ResNet(BasicBlock, [3,4,6,3])

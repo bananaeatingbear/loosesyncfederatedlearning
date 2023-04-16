@@ -19,8 +19,6 @@ import numpy as np
 import random
 
 import sklearn
-from whitebox_attack import *
-from blackbox_attack import *
 import argparse
 from data import dataset
 from model import *
@@ -34,13 +32,11 @@ from user import *
 from data import *
 from tqdm import tqdm
 import copy
-from fed_attack import *
 from opacus import PrivacyEngine
 from model_utils import _ECELoss
 from model_utils import _batchnorm_to_groupnorm_new
-from diffmi_attack import diffmi_attack
-from nasr_fed_attack import nasr_fed_attack
-from multi_party_attack import *
+from datetime import datetime
+start_time = datetime.now()
 
 parser = argparse.ArgumentParser(description='cSG-MCMC CIFAR10 Training')
 parser.add_argument('--dir', type=str, default=None, required=True, help='path to save checkpoints (default: None)')
@@ -64,46 +60,6 @@ torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 random.seed(args.seed)
 sklearn.utils.check_random_state(args.seed)
-#dataset = args.dataset
-#model_name = 'alexnet'
-#model_name = 'resnet20'
-#model_name = 'intel'
-#model_name = 'retina'
-#model_name = 'sat6'
-model_name = 'resnet18'
-#model_name = 'fashion_mnist'
-target_dataset = dataset(dataset_name=args.dataset, gpu=1,membership_attack_number=0)
-datasize = 45000
-#datasize = 10000
-#datasize = 20000
-#datasize = 20000
-#datasize = 20000
-num_batch = datasize/args.batch_size+1
-lr_0 = 0.5 # initial lr for resnet20 / resnet18
-#lr_0 = 0.02# initlal lr for intel
-#lr_0 = 0.2 # initial lr for retina
-#lr_0 = 0.1 # intial lr for sat6
-#lr_0 = 0.2 # initlal lr for fashion_mnist
-M = 4 # number of cycles
-#M = 3
-T = args.epochs*num_batch # total number of iterations
-criterion = nn.CrossEntropyLoss()
-#net = TargetNet(args.dataset, target_dataset.data.shape[1], len(np.unique(target_dataset.label)))
-net = ResNet18(10)
-#net = resnet(depth=20,num_classes=10)
-optimizer = optim.SGD(net.parameters(), lr=lr_0, momentum=1-args.alpha, weight_decay=5e-4)
-mt = 0
-
-# Model
-print('==> Building model..')
-#net = alexnet(num_classes=10)
-#net = resnet(depth=20,num_classes=10)
-#net = ResNet18(num_classes=10)
-
-if use_cuda:
-    net.cuda(device_id)
-    cudnn.benchmark = True
-    cudnn.deterministic = True
 
 
 def assign_part_dataset(dataset):
@@ -128,12 +84,12 @@ def assign_part_dataset(dataset):
 		transform_test = transforms.ToTensor()
 		target_transform = transforms.ToTensor()
 	
-	train_data = np.load(f'./csgmcmc/{args.dataset}_{int(datasize/10)}_train_data.npy')
-	train_label = np.load(f'./csgmcmc/{args.dataset}_{int(datasize/10)}_train_label.npy')
-	test_data = np.load(f'./csgmcmc/{args.dataset}_{int(datasize/10)}_test_data.npy')
-	test_label = np.load(f'./csgmcmc/{args.dataset}_{int(datasize/10)}_test_label.npy')
+	train_data = np.load(f'./csgmcmc/{args.dataset}_{int(datasize / 10)}_train_data.npy')
+	train_label = np.load(f'./csgmcmc/{args.dataset}_{int(datasize / 10)}_train_label.npy')
+	test_data = np.load(f'./csgmcmc/{args.dataset}_{int(datasize / 10)}_test_data.npy')
+	test_label = np.load(f'./csgmcmc/{args.dataset}_{int(datasize / 10)}_test_label.npy')
 	
-	print (train_data.shape,test_data.shape,train_label.shape,test_label.shape)
+	print(train_data.shape, test_data.shape, train_label.shape, test_label.shape)
 	
 	#### create dataset and dataloader
 	train = part_pytorch_dataset(train_data, train_label, train=True, transform=transform_train,
@@ -150,26 +106,27 @@ def assign_part_dataset(dataset):
 	
 	return train_data_loader, test_data_loader
 
-trainloader,testloader = assign_part_dataset(target_dataset)
 
-def noise_loss(lr,alpha):
-    noise_loss = 0.0
-    noise_std = (2/lr*alpha)**0.5
-    for var in net.parameters():
-        means = torch.zeros(var.size()).cuda(device_id)
-        noise_loss += torch.sum(var * torch.normal(means, std = noise_std).cuda(device_id))
-    return noise_loss
+def noise_loss(lr, alpha):
+	noise_loss = 0.0
+	noise_std = (2 / lr * alpha) ** 0.5
+	for var in net.parameters():
+		means = torch.zeros(var.size()).cuda(device_id)
+		noise_loss += torch.sum(var * torch.normal(means, std=noise_std).cuda(device_id))
+	return noise_loss
+
 
 def adjust_learning_rate(optimizer, epoch, batch_idx):
-    rcounter = epoch*num_batch+batch_idx
-    cos_inner = np.pi * (rcounter % (T // M))
-    cos_inner /= T // M
-    cos_out = np.cos(cos_inner) + 1
-    lr = 0.5*cos_out*lr_0
+	rcounter = epoch * num_batch + batch_idx
+	cos_inner = np.pi * (rcounter % (T // M))
+	cos_inner /= T // M
+	cos_out = np.cos(cos_inner) + 1
+	lr = 0.5 * cos_out * lr_0
+	
+	for param_group in optimizer.param_groups:
+		param_group['lr'] = lr
+	return lr
 
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-    return lr
 
 def train(epoch):
 	print('\nEpoch: %d' % epoch)
@@ -177,17 +134,17 @@ def train(epoch):
 	train_loss = 0
 	correct = 0
 	total = 0
-	for batch_idx, (inputs, targets,_) in enumerate(trainloader):
+	for batch_idx, (inputs, targets, _) in enumerate(trainloader):
 		if use_cuda:
 			inputs, targets = inputs.cuda(device_id), targets.cuda(device_id)
 		
 		optimizer.zero_grad()
-		lr = adjust_learning_rate(optimizer, epoch,batch_idx)
-		#print (f"epoch {epoch}, lr {lr}")
+		lr = adjust_learning_rate(optimizer, epoch, batch_idx)
+		# print (f"epoch {epoch}, lr {lr}")
 		outputs = net(inputs)
-		if (epoch%50)+1>45:
-			loss_noise = noise_loss(lr,args.alpha)*(args.temperature/datasize)**.5
-			loss = criterion(outputs, targets)+loss_noise
+		if (epoch % 50) + 1 > 45:
+			loss_noise = noise_loss(lr, args.alpha) * (args.temperature / datasize) ** .5
+			loss = criterion(outputs, targets) + loss_noise
 		else:
 			loss = criterion(outputs, targets)
 		loss.backward()
@@ -198,10 +155,11 @@ def train(epoch):
 		total += targets.size(0)
 		correct += predicted.eq(targets.data).cpu().sum()
 		
-		if batch_idx%200==0:
-			print(' Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)'% (train_loss/(batch_idx+1), 100.*correct.item()/total, correct, total))
-		
-	return train_loss/(batch_idx+1), 100.*correct.item()/total
+		if batch_idx % 200 == 0:
+			print(' Train Loss: %.3f | Train Acc: %.3f%% (%d/%d)' % (train_loss / (batch_idx + 1), 100. * correct.item() / total, correct, total))
+	
+	return train_loss / (batch_idx + 1), 100. * correct.item() / total
+
 
 def test(epoch):
 	global best_acc
@@ -213,32 +171,105 @@ def test(epoch):
 	ece_criterion = _ECELoss().cuda()
 	logits_list = []
 	labels_list = []
-
+	
 	with torch.no_grad():
-		for batch_idx, (inputs, targets,_) in enumerate(testloader):
+		for batch_idx, (inputs, targets, _) in enumerate(testloader):
 			if use_cuda:
 				inputs, targets = inputs.cuda(device_id), targets.cuda(device_id)
 			outputs = net(inputs)
 			loss = criterion(outputs, targets)
-		
+			
 			test_loss += loss.data.item()
 			_, predicted = torch.max(outputs.data, 1)
 			total += targets.size(0)
 			correct += predicted.eq(targets.data).cpu().sum()
-		
+			
 			logits_list.append(outputs)
 			labels_list.append(targets)
-
-
-	print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(test_loss/len(testloader), correct, total,100. * correct.item() / total))
-
+	
+	print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(test_loss / len(testloader), correct, total, 100. * correct.item() / total))
+	
 	logits = torch.cat(logits_list).cuda()
 	labels = torch.cat(labels_list).cuda()
-	ece_loss = ece_criterion(logits, labels).detach().item()
+	# ece_loss = ece_criterion(logits, labels).detach().item()
+	ece_loss = 0
+	
+	print(f"ece loss {ece_loss}")
+	
+	return test_loss / len(testloader), 100. * correct.item() / total, ece_loss
 
-	print (f"ece loss {ece_loss}")
 
-	return test_loss/len(testloader), 100. * correct.item() / total, ece_loss
+#model_name = 'alexnet'
+#model_name = 'resnet20'
+#model_name = 'intel'
+#model_name = 'retina'
+#model_name = 'sat6'
+#model_name = 'resnet20'
+#model_name = 'fashion_mnist'
+#datasize = 45000
+#datasize = 10000
+#datasize = 20000
+#datasize = 20000
+#datasize = 20000
+#lr_0 = 0.5 # initial lr for resnet20 / resnet18
+#lr_0 = 0.02# initlal lr for intel
+#lr_0 = 0.2 # initial lr for retina
+#lr_0 = 0.1 # intial lr for sat6
+#lr_0 = 0.2 # initlal lr for fashion_mnist
+
+M = 4 # number of cycles
+#M = 3
+target_dataset = dataset(dataset_name=args.dataset, gpu=1,membership_attack_number=0)
+
+if (args.dataset == 'cifar10'):
+	model_name = 'resnet20'
+	datasize = 45000
+	lr_0 = 0.5
+	net = resnet(depth=20,num_classes=10)
+
+if (args.dataset == 'fashion_mnist'):
+	model_name = 'fashion_mnist'
+	datasize = 20000
+	lr_0 = 0.2
+	net = TargetNet(args.dataset, target_dataset.data.shape[1], len(np.unique(target_dataset.label)))
+
+if (args.dataset == 'intel'):
+	model_name = 'intel'
+	datasize = 10000
+	lr_0 = 0.02
+	net = TargetNet(args.dataset, target_dataset.data.shape[1], len(np.unique(target_dataset.label)))
+	
+if (args.dataset == 'retina'):
+	model_name = 'retina'
+	datasize = 20000
+	lr_0 = 0.2
+	net = TargetNet(args.dataset, target_dataset.data.shape[1], len(np.unique(target_dataset.label)))
+	
+if (args.dataset == 'sat6'):
+	model_name = 'sat6'
+	datasize = 20000
+	lr_0 = 0.1
+	net = TargetNet(args.dataset, target_dataset.data.shape[1], len(np.unique(target_dataset.label)))
+
+
+num_batch = datasize/args.batch_size+1
+T = args.epochs*num_batch # total number of iterations
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.SGD(net.parameters(), lr=lr_0, momentum=1-args.alpha, weight_decay=5e-4)
+mt = 0
+
+# Model
+print('==> Building model..')
+
+if use_cuda:
+	net.cuda(device_id)
+	### train net in parallel
+	net = torch.nn.DataParallel(net,device_ids=[0,1,2,3]).cuda(0)
+	device_id = torch.cuda.current_device()
+	cudnn.benchmark = True
+	cudnn.deterministic = True
+
+trainloader,testloader = assign_part_dataset(target_dataset)
 
 loss_list = []
 acc_list = []
@@ -257,3 +288,7 @@ for epoch in range(args.epochs):
     
 np.save(f'csgmcmc_{args.dataset}_{model_name}_{lr_0}_{args.batch_size}_acc.npy',np.array(acc_list))
 np.save(f'csgmcmc_{args.dataset}_{model_name}_{lr_0}_{args.batch_size}_loss.npy',np.array(loss_list))
+
+end_time = datetime.now()
+print(start_time, end_time)
+print(f"time spent {(end_time - start_time).seconds}")

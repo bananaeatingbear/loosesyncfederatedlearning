@@ -93,7 +93,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, depth, num_classes=1000, block_name='BasicBlock'):
+    def __init__(self, depth, num_classes=1000, block_name='BasicBlock',num_width=[16,32,64]):
         super(ResNet, self).__init__()
         # Model type specifies number of layers for CIFAR-10 model
         if block_name.lower() == 'basicblock':
@@ -107,17 +107,17 @@ class ResNet(nn.Module):
         else:
             raise ValueError('block_name shoule be Basicblock or Bottleneck')
 
-
         self.inplanes = 16
+
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1,
-                               bias=False)
+                           bias=False)
         self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
-        self.layer1 = self._make_layer(block, 16, n)
-        self.layer2 = self._make_layer(block, 32, n, stride=2)
-        self.layer3 = self._make_layer(block, 64, n, stride=2)
+        self.layer1 = self._make_layer(block, num_width[0], n)
+        self.layer2 = self._make_layer(block, num_width[1], n, stride=2)
+        self.layer3 = self._make_layer(block, num_width[2], n, stride=2)
         self.avgpool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(64 * block.expansion, num_classes)
+        self.fc = nn.Linear(num_width[2] * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -145,16 +145,24 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        print(x.size())
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)    # 32x32
+        
+        print (x.size())
 
         x = self.layer1(x)  # 32x32
+        print (x.size())
         x = self.layer2(x)  # 16x16
+        print (x.size())
         x = self.layer3(x)  # 8x8
+        print (x.size())
 
         x = self.avgpool(x)
+        print (x.size())
         x = x.view(x.size(0), -1)
+        print (x.size())
         x = self.fc(x)
 
         return x

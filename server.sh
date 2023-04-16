@@ -1,1 +1,0 @@
-python server.py --dataset cifar10 --model_name resnet18 --num_step 45 --user_number 10 --target_learning_rate 0.1 --target_data_size 4500 --target_epochs 200 --target_batch_size 100 --target_l2_ratio 5e-4

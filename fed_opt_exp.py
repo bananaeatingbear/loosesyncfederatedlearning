@@ -13,6 +13,7 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 import copy
 import pytorch_lightning as pl
+from scipy.stats import entropy
 
 def get_naming_mid_str():
 	name_string_mid_str = str(args.user_number) + '_' + str(args.num_step) + '_'
@@ -23,11 +24,7 @@ def get_naming_mid_str():
 	if (args.model_sampling=='simplex'):
 		name_string_mid_str = name_string_mid_str  + 'simplex_sampling_'
 		
-	#name_string_mid_str = name_string_mid_str + f'ablation_lr_{args.target_learning_rate}_{args.target_epochs}_'
-	#name_string_mid_str = name_string_mid_str + f'ablation_batch_size_{args.target_batch_size}_'
-	#print (name_string_mid_str)
 	return name_string_mid_str
-
 
 def assign_part_dataset(dataset, user_list=[]):
 	if (dataset.dataset_name == 'cifar10' or dataset.dataset_name == 'cifar100'):
@@ -61,77 +58,28 @@ def assign_part_dataset(dataset, user_list=[]):
 	
 	num_users = len(user_list)
 	
-	### generating train / test indices for each user
-	
-	## for CIFAR-10 / CIFAR-100, we have 50000/10000 train/test data,
-	## then each user should share the test data and we need to split the training data
-	
-	## for purchase and texas, we have enough data
-	
-	## the maximum number of user we can support is 10
 	training_set_size = args.target_data_size
-	index_left = np.arange(len(dataset.train_label))  # the # of data left for generating new split of training data
-	
+	index_left = np.arange(len(dataset.train_label))
 	assigned_index = []
 	
-	'''
-	attacker_evaluation_data = []
-	attacker_evaluation_label = []
-	attacker_evaluation_data_index = []
-	#### do we need to include non-member data in this? do we need to do gradient ascent for non-members?
-
-	### active attackers may attack in the following 2 different ways.
-	### 2 cases:
-	# 1: do gradient ascent for members and non-members. the grad of members should be smaller than non-members.
-	# but the grad of members might be close to the grad of normal testing samples.
-	# the grad of non-members would be super large.
-
-	# 2: do gradient ascent for members only. here the goal is to tell the members apart from normal testing samples.
-	# the expected result is that the grad norm of members should be super large, even larger than normal testing samples.
-	# but this is actually depending on the testing accuracy. and the grad norm of members might not be that large.
-
-	In our current experiment, we choose method 1, i.e. do gradient ascent for both members and non-members.
-	We need to explicitly find a targeted set to do gradient ascent. The server is the attacker to do gradient ascent.
-	'''
-	
 	for i in range(num_users):
-		
 		this_user = user_list[i]
 		this_user.target_transform = target_transform
 		this_user.train_transform = transform_train
 		this_user.test_transform = transform_test
-		
-		#print (f"user {i}, left {len(index_left)}")
 		this_user_index = np.random.choice(len(index_left), training_set_size, replace=False)
 		this_user_train_index = index_left[this_user_index]
 		new_index_left = np.setdiff1d(np.arange(len(index_left)), this_user_index)
 		index_left = index_left[new_index_left]
 		
-		#if(i==0):
-		#print (this_user_index[:20])
-		
 		this_user.train_data = dataset.train_data[this_user_train_index]
 		this_user.train_label = dataset.train_label[this_user_train_index]
 		
-		print (np.bincount(this_user.train_label))
 		this_user.class_weight = np.ones((len(np.unique(this_user.train_label)))) * training_set_size / (len(np.unique(this_user.train_label)) * np.bincount(this_user.train_label))
-		print ("class weight:",this_user.class_weight)
-		#print (this_user.class_weight*np.bincount(this_user.train_label))
-		#print (np.sum(this_user.class_weight))
-		#print (f"repartition sanity check: user idx {i}, top 10 index {np.sort(this_user_train_index)[:10]}")
 		
 		this_user.test_data = dataset.test_data
 		this_user.test_label = dataset.test_label
 		assigned_index.append(this_user_train_index)
-		
-		### take a fraction of training data to be used as MI evaluation data (this is the member part of evaluation data)
-		# when active attacker is not activated, here the eval_data_size == target_train_size
-		# when active attacker is activated, here the eval_data_size == 100 or 50
-		### if we are going to do targeted class GA mislabeling, then we need to make sure eval set in a specific class
-		
-		eval_data_index = np.random.choice(len(this_user_train_index), args.eval_data_size, replace=False)
-		evaluation_data = copy.deepcopy(this_user.train_data[eval_data_index])
-		evaluation_label = copy.deepcopy(this_user.train_label[eval_data_index])
 		
 		#### create dataset and dataloader
 		train = part_pytorch_dataset(this_user.train_data, this_user.train_label, train=True, transform=transform_train,
@@ -151,23 +99,11 @@ def assign_part_dataset(dataset, user_list=[]):
 		                                                          shuffle=True, num_workers=1)
 		this_user.test_data_loader = torch.utils.data.DataLoader(test, batch_size=args.target_batch_size, shuffle=False,
 		                                                         num_workers=1)
-		this_user.train_eval_data_loader = torch.utils.data.DataLoader(train_eval, batch_size=1, shuffle=False,
+		this_user.train_eval_data_loader = torch.utils.data.DataLoader(train_eval, batch_size=args.target_batch_size, shuffle=False,
 		                                                               num_workers=1)
 		this_user.train_loader_in_order = torch.utils.data.DataLoader(train, batch_size=args.target_batch_size,
 		                                                              shuffle=False, num_workers=1)
 		
-		evaluation = part_pytorch_dataset(evaluation_data, evaluation_label, train=False, transform=transform_test,
-		                                  target_transform=target_transform)
-		this_user.evaluation_member_dataset = evaluation
-		
-		### we use testing data as 'eval_non_member' set
-		non_member_index = np.random.choice(len(this_user.test_label), args.eval_data_size, replace=False)
-		evaluation_non_member = part_pytorch_dataset(copy.deepcopy(this_user.test_data[non_member_index]),
-		                                             copy.deepcopy(this_user.test_label[non_member_index]), train=False,
-		                                             transform=transform_test,
-		                                             target_transform=target_transform)
-		this_user.evaluation_non_member_dataset = evaluation_non_member
-	
 	### check remaining unassigned data
 	dataset.remaining_index = index_left
 	valid_data = dataset.train_data[index_left]
@@ -187,8 +123,275 @@ def assign_part_dataset(dataset, user_list=[]):
 	np.save(f'./csgmcmc/{dataset.dataset_name}_{training_set_size}_train_label.npy',dataset.train_label[assigned_index])
 	np.save(f'./csgmcmc/{dataset.dataset_name}_{training_set_size}_test_data.npy',dataset.test_data)
 	np.save(f'./csgmcmc/{dataset.dataset_name}_{training_set_size}_test_label.npy',dataset.test_label)
-	
+	np.save(f'./csgmcmc/{dataset.dataset_name}_{training_set_size}_valid_data.npy',valid_data)
+	np.save(f'./csgmcmc/{dataset.dataset_name}_{training_set_size}_valid_label.npy',valid_label)
 
+def get_prediction(model,user_list,train_data=True):
+	pred = []
+	true_labels = []
+	for this_user in user_list:
+		if (train_data):
+			data_loader = this_user.train_eval_data_loader
+		else:
+			data_loader = this_user.test_data_loader
+		for images,labels,_ in data_loader:
+			images = images.cuda()
+			labels = labels.cuda()
+			this_pred = F.softmax(model(images),dim=1).detach()
+			pred.append(this_pred)
+			true_labels.append(labels)
+	
+	pred = torch.vstack(pred)
+	true_labels = torch.flatten(torch.cat(true_labels))
+	#print (pred.shape,true_labels.shape)
+	return pred,true_labels
+
+def get_accuracy(truth, pred):
+	assert len(truth)==len(pred)
+	right = 0
+	for i in range(len(truth)):
+		if truth[i]==pred[i]:
+			right += 1.0
+	return right/len(truth)
+
+def ece_score(py, y_test, n_bins=10):
+    py = np.array(py)
+    y_test = np.array(y_test)
+    if y_test.ndim > 1:
+        y_test = np.argmax(y_test, axis=1)
+    py_index = np.argmax(py, axis=1)
+    py_value = []
+    for i in range(py.shape[0]):
+        py_value.append(py[i, py_index[i]])
+    py_value = np.array(py_value)
+    acc, conf = np.zeros(n_bins), np.zeros(n_bins)
+    Bm = np.zeros(n_bins)
+    for m in range(n_bins):
+        a, b = m / n_bins, (m + 1) / n_bins
+        for i in range(py.shape[0]):
+            if py_value[i] > a and py_value[i] <= b:
+                Bm[m] += 1
+                if py_index[i] == y_test[i]:
+                    acc[m] += 1
+                conf[m] += py_value[i]
+        if Bm[m] != 0:
+            acc[m] = acc[m] / Bm[m]
+            conf[m] = conf[m] / Bm[m]
+    ece = 0
+    for m in range(n_bins):
+        ece += Bm[m] * np.abs((acc[m] - conf[m]))
+    return ece / sum(Bm)
+
+def get_uncertainty_prediction(model,loader):
+	pred = []
+	true_labels = []
+	for images,labels,_ in loader:
+		images = images.cuda()
+		labels = labels.cuda()
+		this_pred = F.softmax(model(images),dim=1).detach()
+		pred.append(this_pred)
+		true_labels.append(labels)
+	
+	pred = torch.vstack(pred)
+	true_labels = torch.flatten(torch.cat(true_labels))
+	#print (pred.shape,true_labels.shape)
+	return pred,true_labels
+	
+def get_uncertainty_loader(dataset):
+	if (dataset == 'cifar10'):
+		num_classes = 10
+		test_data = np.load('/home/lijiacheng/dataset/gtsrb_test_images.npy').astype(np.uint8)
+		test_label = np.load('/home/lijiacheng/dataset/gtsrb_test_labels.npy').astype(np.int64)
+		transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+		])
+		target_transform = transforms.ToTensor()
+		sampled_class = np.sort(np.random.choice(np.unique(test_label), num_classes, replace=False))
+		sampled_test_index = []
+		sampled_test_label = []
+		for idx, this_class in enumerate(sampled_class):
+			this_class_index = np.arange(len(test_label))[test_label == this_class]
+			sampled_test_index.append(this_class_index)
+			sampled_test_label.append(np.ones(len(this_class_index)) * idx)
+		sampled_test_index = np.hstack(sampled_test_index)
+		sampled_test_data = test_data[sampled_test_index, :, :, :]
+		sampled_test_label = np.hstack(sampled_test_label)
+		gtsrb_testset = part_pytorch_dataset(sampled_test_data, sampled_test_label, train=False, transform=transform_test,
+		                                     target_transform=target_transform)
+		gtsrb_testloader = torch.utils.data.DataLoader(gtsrb_testset, batch_size=100, shuffle=False, num_workers=0)
+		loader = gtsrb_testloader
+	if (dataset == 'intel'):
+		num_classes = 6
+		test_data = np.load('/home/lijiacheng/dataset/gtsrb_test_images.npy').astype(np.uint8)
+		test_label = np.load('/home/lijiacheng/dataset/gtsrb_test_labels.npy').astype(np.int64)
+		transform_test = transforms.ToTensor()
+		target_transform = transforms.ToTensor()
+		sampled_class = np.sort(np.random.choice(np.unique(test_label), num_classes, replace=False))
+		sampled_test_index = []
+		sampled_test_label = []
+		for idx, this_class in enumerate(sampled_class):
+			this_class_index = np.arange(len(test_label))[test_label == this_class]
+			sampled_test_index.append(this_class_index)
+			sampled_test_label.append(np.ones(len(this_class_index)) * idx)
+		sampled_test_index = np.hstack(sampled_test_index)
+		sampled_test_data = test_data[sampled_test_index, :, :, :]
+		sampled_test_label = np.hstack(sampled_test_label)
+		gtsrb_testset = part_pytorch_dataset(sampled_test_data, sampled_test_label, train=False, transform=transform_test,
+		                                     target_transform=target_transform)
+		gtsrb_testloader = torch.utils.data.DataLoader(gtsrb_testset, batch_size=100, shuffle=False, num_workers=0)
+		loader = gtsrb_testloader
+	if (dataset == 'sat6'):
+		num_classes = 6
+		test_data = np.load('/home/lijiacheng/dataset/mnist_test_data.npy').astype(np.uint8)
+		test_label = np.load('/home/lijiacheng/dataset/mnist_test_label.npy').astype(np.int64)
+		transform_test = transforms.ToTensor()
+		target_transform = transforms.ToTensor()
+		sampled_class = np.sort(np.random.choice(np.unique(test_label), num_classes, replace=False))
+		sampled_test_index = []
+		sampled_test_label = []
+		for idx, this_class in enumerate(sampled_class):
+			this_class_index = np.arange(len(test_label))[test_label == this_class]
+			sampled_test_index.append(this_class_index)
+			sampled_test_label.append(np.ones(len(this_class_index)) * idx)
+		sampled_test_index = np.hstack(sampled_test_index)
+		sampled_test_data = test_data[sampled_test_index]
+		sampled_test_label = np.hstack(sampled_test_label)
+		resized_sampled_test_data = [np.repeat(np.reshape(this_img, (28, 28, 1)), 4, axis=-1) for this_img in sampled_test_data]
+		resized_sampled_test_data = np.array(resized_sampled_test_data)
+		gtsrb_testset = part_pytorch_dataset(resized_sampled_test_data, sampled_test_label, train=False, transform=transform_test,
+		                                     target_transform=target_transform)
+		gtsrb_testloader = torch.utils.data.DataLoader(gtsrb_testset, batch_size=100, shuffle=False, num_workers=0)
+		loader = gtsrb_testloader
+	if (dataset == 'retina'):
+		num_classes = 4
+		test_data = np.load('/home/lijiacheng/dataset/gtsrb_test_images.npy').astype(np.uint8)
+		test_label = np.load('/home/lijiacheng/dataset/gtsrb_test_labels.npy').astype(np.int64)
+		transform_test = transforms.ToTensor()
+		target_transform = transforms.ToTensor()
+		sampled_class = np.sort(np.random.choice(np.unique(test_label), num_classes, replace=False))
+		sampled_test_index = []
+		sampled_test_label = []
+		for idx, this_class in enumerate(sampled_class):
+			this_class_index = np.arange(len(test_label))[test_label == this_class]
+			sampled_test_index.append(this_class_index)
+			sampled_test_label.append(np.ones(len(this_class_index)) * idx)
+		sampled_test_index = np.hstack(sampled_test_index)
+		sampled_test_data = test_data[sampled_test_index, :, :, :]
+		import cv2
+		resized_sampled_test_data = [cv2.resize(this_img, (64, 64)) for this_img in sampled_test_data]
+		resized_sampled_test_data = np.array(resized_sampled_test_data)
+		sampled_test_label = np.hstack(sampled_test_label)
+		gtsrb_testset = part_pytorch_dataset(resized_sampled_test_data, sampled_test_label, train=False, transform=transform_test,
+		                                     target_transform=target_transform)
+		gtsrb_testloader = torch.utils.data.DataLoader(gtsrb_testset, batch_size=100, shuffle=False, num_workers=0)
+		loader = gtsrb_testloader
+	if (dataset == 'fashion_mnist'):
+		num_classes = 10
+		test_data = np.load('/home/lijiacheng/dataset/mnist_test_data.npy').astype(np.uint8)
+		test_label = np.load('/home/lijiacheng/dataset/mnist_test_label.npy').astype(np.int64)
+		transform_test = transforms.ToTensor()
+		target_transform = transforms.ToTensor()
+		sampled_class = np.sort(np.random.choice(np.unique(test_label), num_classes, replace=False))
+		sampled_test_index = []
+		sampled_test_label = []
+		for idx, this_class in enumerate(sampled_class):
+			this_class_index = np.arange(len(test_label))[test_label == this_class]
+			sampled_test_index.append(this_class_index)
+			sampled_test_label.append(np.ones(len(this_class_index)) * idx)
+		sampled_test_index = np.hstack(sampled_test_index)
+		sampled_test_data = test_data[sampled_test_index, :, :]
+		sampled_test_label = np.hstack(sampled_test_label)
+		gtsrb_testset = part_pytorch_dataset(sampled_test_data, sampled_test_label, train=False, transform=transform_test,
+		                                     target_transform=target_transform)
+		gtsrb_testloader = torch.utils.data.DataLoader(gtsrb_testset, batch_size=100, shuffle=False, num_workers=0)
+		loader = gtsrb_testloader
+	return loader
+
+
+def model_evaluation(models,user_list,exp_name='sgd'):
+	print ("----------")
+	### train loss
+	pred_list = []
+	num_model = len(models)
+	for i in range(num_model):
+		pred, truth_res =get_prediction(models[i],user_list)
+		pred_list.append(pred)
+	
+	avg_pred = sum(pred_list) / num_model
+	values, pred_label = torch.max(avg_pred, dim=1)
+	pred_res = list(pred_label.data)
+	
+	acc = get_accuracy(truth_res, pred_res)
+	print(f"{exp_name} train acc", acc)
+	
+	sum_loss = 0
+	for i in range(len(avg_pred)):
+		this_pred = avg_pred[i]
+		this_label = truth_res[i]
+		this_loss = -1 * torch.log(this_pred[this_label])
+		sum_loss += this_loss.item()
+	print(f"{exp_name} avg train loss", sum_loss / len(avg_pred))
+	
+	### test loss
+	pred_list = []
+	for i in range(num_model):
+		pred, truth_res =get_prediction(models[i],user_list,train_data=False)
+		pred_list.append(pred)
+	
+	avg_pred = sum(pred_list) / num_model
+	values, pred_label = torch.max(avg_pred, dim=1)
+	pred_res = list(pred_label.data)
+	
+	acc = get_accuracy(truth_res, pred_res)
+	print(f"{exp_name} test acc", acc)
+	
+	sum_loss = 0
+	for i in range(len(avg_pred)):
+		this_pred = avg_pred[i]
+		this_label = truth_res[i]
+		this_loss = -1 * torch.log(this_pred[this_label])
+		sum_loss += this_loss.item()
+	print(f"{exp_name} avg test loss", sum_loss / len(avg_pred))
+
+	### ECE
+	#print (fake.size(),truth_res.size())
+	avg_pred = avg_pred.cpu().numpy()
+	truth_res = truth_res.cpu().numpy()
+	ece = ece_score(avg_pred,truth_res,n_bins=15)
+	print (f"{exp_name} ECE score {ece}")
+	
+	### uncertainty
+	uncertainty_loader = get_uncertainty_loader(dataset=args.dataset)
+	pred_list = []
+	for i in range(num_model):
+		pred, truth_res =get_uncertainty_prediction(models[i],uncertainty_loader)
+		pred_list.append(pred)
+
+	avg_pred = sum(pred_list) / num_model
+	sum_loss = 0
+	sum_loss_list = []
+	for i in range(len(avg_pred)):
+		this_pred = avg_pred[i]
+		this_label = truth_res[i]
+		this_loss = entropy(this_pred.cpu().numpy())
+		sum_loss += this_loss
+		sum_loss_list.append(this_loss)
+	print(f"{exp_name} avg uncertainty", sum_loss / len(avg_pred))
+	#np.save(f'./{exp_name}_uncertainty_cifar10.npy', np.array(sum_loss_list))
+	
+	### volume test
+	if (len(models)>1):
+		from model_utils import calculate_volume
+		model_weight_list = []
+		for i in range(num_model):
+			model_weight_list.append(models[i].state_dict())
+		zero_prev = {}
+		for key,val in model_weight_list[0].items():
+			zero_prev[key] = torch.zeros_like(val)
+		_,volume = calculate_volume(model_weight_list=model_weight_list,prev_weight_list=[zero_prev],lr=1,max_dim=9)
+		print(f"volume test {volume}")
+	print ("----------")
 
 def simplex_test(user_list, local_weight, local_model, epoch, num_step, comm_round_idx, test_round=10,
                  ori_model_weight={}):
@@ -253,8 +456,70 @@ def simplex_test(user_list, local_weight, local_model, epoch, num_step, comm_rou
 	loss = np.array(loss)
 	np.save(data_name, loss)
 	print (acc.shape, loss.shape, naming_str)
-	# print (acc)
-	# print (loss)
+
+
+def sgmcmc(target_model,user_list):
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	### notice that in pytorch, momentum etc. is bound with optimizer, so we need to initialize the optimizer/model for each user
+	momentum = 0
+	decay = 5e-4
+	learning_rate = args.target_learning_rate
+	
+	for user_idx in range(len(user_list)):
+		user_list[user_idx].model = copy.deepcopy(target_model).to(device)
+		this_optim = torch.optim.SGD(user_list[user_idx].model.parameters(), lr=learning_rate, momentum=momentum,
+		                             weight_decay=decay)
+		user_list[user_idx].optim = this_optim
+		for param_group in user_list[user_idx].optim.param_groups:
+			param_group['lr'] = learning_rate
+	
+	### now we start sgmcmc
+	
+	### csgmcmc start with 0.5 .
+	### 0.02377 - 0.01757 (0.046 ~ 0.034)
+	### 0.01755 - 0.01224 (0.034 ~ 0.024)
+	### 0.01224 - 0.00786 (0.024 ~ 0.014)
+	
+	# sg_mcmc_lr = np.array([1,0.1,0.09,0.08,0.07,0.06])*args.target_learning_rate
+	# sg_mcmc_lr = np.array([1,0.5,0.4,0.3,0.2,0.1])*args.target_learning_rate
+	# sg_mcmc_lr = np.array([1,0.9,0.7,0.5,0.3,0.1])*args.target_learning_rate
+	# sg_mcmc_lr = np.array([1,0.9,0.7,0.5,0.3,0.1])*0.01
+	# sg_mcmc_lr = np.array([1,1,1,1,1,1])*args.target_learning_rate
+	# sg_mcmc_lr = np.array([1,0.05,0.04,0.03,0.02,0.01])*args.target_learning_rate
+	
+	if (args.target_learning_rate == 0.01):
+		sg_mcmc_lr = np.array([1, 1, 1, 1, 1, 1]) * args.target_learning_rate
+	elif (args.target_learning_rate == 0.1):
+		sg_mcmc_lr = np.array([1, 0.9, 0.7, 0.5, 0.3, 0.1]) * args.target_learning_rate
+	
+	return_models = []
+	for sg_step in range(1, 6):
+		#print(f"sg step {sg_step}")
+		for user_idx in range(len(user_list)):
+			### adjust learning rate
+			for param_group in user_list[user_idx].optim.param_groups:
+				param_group['lr'] = sg_mcmc_lr[sg_step]
+			
+			### train the model with noise
+			train_data_loader = user_list[user_idx].create_new_train_data_loader(batch_size=100)
+			w = update_weights_mcmc(current_model_weights=user_list[user_idx].model.state_dict(),
+			                        model=user_list[user_idx].model, optimizer=user_list[user_idx].optim,
+			                        train_loader=train_data_loader, local_epochs=1,
+			                        mixup=args.mixup, num_step=args.num_step,
+			                        class_weights=user_list[user_idx].class_weight, lr=sg_mcmc_lr[sg_step], datasize=args.target_data_size, alpha=1)
+			user_list[user_idx].model.load_state_dict(w)  ### this is not necessary actually..
+			
+			if (sg_step == 5):
+				return_models.append(copy.deepcopy(user_list[user_idx].model))
+			
+			model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{user_idx}_mcmc_{sg_step}.pt"
+			torch.save(w, model_path)
+			train_acc, test_acc = get_train_test_acc([user_list[user_idx]], user_list[user_idx].model, print_option=False)
+			#print(f"SG-MCMC step {sg_step}, user idx {user_idx}, train_acc {train_acc}, test acc {test_acc}")
+	
+	#print("SGMCMC finished")
+	
+	return return_models
 
 
 def train_models(user_list, target_model, learning_rate, decay, epochs,target_dataset=None):
@@ -263,6 +528,12 @@ def train_models(user_list, target_model, learning_rate, decay, epochs,target_da
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 	target_model.type(torch.FloatTensor)
 	target_model.to(device)
+	
+	#if (num_users == 1):
+	## enable parallel computation for standard SGD. fed learning in parallel in implemented using flower. This implementation is a sequential fashion of federated learning
+	#	target_model = torch.nn.DataParallel(target_model, device_ids=[0, 1, 2]).cuda(0)
+	#	device = torch.cuda.current_device()
+	
 	momentum = 0.9
 	
 	volume_results = []
@@ -270,6 +541,7 @@ def train_models(user_list, target_model, learning_rate, decay, epochs,target_da
 	cosine_results = []
 	loss_list = []
 	acc_list = []
+	best_model = copy.deepcopy(target_model)
 	
 	min_loss = 1e20
 	max_acc = 0
@@ -282,6 +554,7 @@ def train_models(user_list, target_model, learning_rate, decay, epochs,target_da
 		this_optim = torch.optim.SGD(user_list[user_idx].model.parameters(), lr=learning_rate, momentum=momentum,weight_decay=decay)
 		user_list[user_idx].optim = this_optim
 		user_list[user_idx].scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(this_optim, T_max=epochs) # eta_min = 0.1*args.target_learning_rate
+		
 	
 	### start training
 	for epoch in tqdm(range(int(epochs/args.local_epochs))):
@@ -300,7 +573,7 @@ def train_models(user_list, target_model, learning_rate, decay, epochs,target_da
 		#		for param_group in user_list[user_idx].optim.param_groups:
 		#			param_group['lr'] = learning_rate
 		
-		print (user_list[0].scheduler.get_last_lr())
+		#print (user_list[0].scheduler.get_last_lr())
 		
 		#### we need to know the # of steps, # of training set size to perform fed sgd
 		
@@ -350,27 +623,25 @@ def train_models(user_list, target_model, learning_rate, decay, epochs,target_da
 				global_weights = average_weights(local_weights)
 			elif (args.model_sampling == 'simplex'):
 				weight_param = simplex_uniform_sampling(len(user_list))
-				print (weight_param)
+				#print (weight_param)
 				global_weights = average_weights(local_weights, weight_param)
 			
 			target_model.load_state_dict(global_weights)
 			
-			train_acc, test_acc, valid_acc, train_loss, test_loss, valid_loss = get_train_test_acc(user_list, target_model, return_validation_result=True,return_loss=True,print_option=True)
+			train_acc, test_acc, valid_acc, train_loss, test_loss, valid_loss = get_train_test_acc(user_list, target_model, return_validation_result=True,return_loss=True,print_option=False)
 			loss_list.append((train_loss, test_loss, valid_loss))
 			acc_list.append((train_acc, test_acc,valid_acc))
-			print (f"Epoch {epoch}:{train_acc},{test_acc},{valid_acc},{train_loss},{test_loss},{valid_loss}")
+			#print (f"Epoch {epoch}:{train_acc},{test_acc},{valid_acc},{train_loss},{test_loss},{valid_loss}")
 		
 			if (valid_loss<min_loss):
-			#if (test_acc>max_acc):
-				print (f"NEW BEST! epoch {epoch}, old min loss {min_loss}, new min loss {valid_loss}")
+				#print (f"NEW BEST! epoch {epoch}, old min loss {min_loss}, new min loss {valid_loss}")
 				min_loss = valid_loss
-				#print(f"NEW BEST! epoch {epoch}, old max acc {max_acc}, new max acc {test_acc}")
-				#max_acc = test_acc
+				best_model = copy.deepcopy(target_model)
 				for idx,this_model_weight in enumerate(local_weights):
-					if (args.local_epochs>1):
-						model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{idx}_{args.local_epochs}.pt"
-					else:
-						model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{idx}.pt"
+					#if (args.local_epochs>1):
+					#	model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{idx}_{args.local_epochs}.pt"
+					#else:
+					model_path = f"./model_checkpoints/{args.model_name}_{args.dataset}_{args.num_step}_{args.user_number}_{args.target_data_size}_{idx}.pt"
 					
 					torch.save({'epoch': epoch,'model_state_dict': target_model.state_dict(),'optimizer_state_dict': user_list[idx].optim.state_dict()}, model_path)
 		
@@ -402,7 +673,7 @@ def train_models(user_list, target_model, learning_rate, decay, epochs,target_da
 	train_acc, test_acc, train_loss, test_loss, ece_loss = get_train_test_acc(user_list, target_model, return_loss=True,print_option=True,return_ece_loss=True)
 	print (f"Epoch {epoch}:{train_acc},{test_acc},{train_loss},{test_loss},{ece_loss}")
 	
-	return target_model, train_acc, test_acc
+	return best_model, train_acc, test_acc
 
 
 def get_gradient(target_model, data, label):
@@ -467,8 +738,31 @@ def attack_experiment():
 	
 	target_model, train_acc, test_acc = train_models(user_list, target_model, learning_rate=args.target_learning_rate,
 	                                                 decay=args.target_l2_ratio, epochs=args.target_epochs,target_dataset=target_dataset)
-
-
+	
+	### eval model
+	if (args.user_number == 1): ## sgd case
+		model_evaluation([target_model],user_list,exp_name='sgd')
+		new_target_model = ModelWithTemperature(copy.deepcopy(target_model))
+		new_target_model.set_temperature(user_list[0].validation_data_loader)
+		model_evaluation([new_target_model], user_list, exp_name='sgd-ts')
+	else:
+		model_evaluation([target_model],user_list,exp_name='fed-avg')
+		### add temperature scaling
+		new_target_model = ModelWithTemperature(copy.deepcopy(target_model))
+		new_target_model.set_temperature(user_list[0].validation_data_loader)
+		### eval model again
+		model_evaluation([new_target_model],user_list,exp_name='fed-avg-ts')
+		### perform SGMCMC
+		model_list = sgmcmc(target_model,user_list)
+		### eval models after SGMCMC
+		model_evaluation(model_list,user_list,exp_name='fed-sgmcmc')
+		### add temperature scaling.. should we add temperature scaling for each model separately?
+		new_model_list = [ModelWithTemperature(model_list[i]) for i in range(len(model_list))]
+		for i in range(len(new_model_list)):
+			new_model_list[i].set_temperature(user_list[0].validation_data_loader)
+		### eval model again
+		model_evaluation(new_model_list,user_list,exp_name='fed-sgmcmc-ts')
+	
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--target_data_size', type=int, default=3000)
@@ -506,22 +800,33 @@ if __name__ == '__main__':
 	parser.add_argument('--model_sampling',type=str,default='avg')
 	### avg -> directly avg, simplex ->  randomly sample from a simplex, particle -> particle sampling using weight
 	parser.add_argument('--repartition',type=int,default=0)
-	parser.add_argument('--random_seed', type=int, default=3)
+	parser.add_argument('--random_seed', type=int, default=0)
 	
 	args = parser.parse_args()
 	print (vars(args))
-	
-	import torch
-	torch.manual_seed(args.random_seed)
+
 	import torch.backends.cudnn as cudnn
 	cudnn.benchmark = True
 	cudnn.deterministic = True
+	import torch
 	import numpy as np
-	np.random.seed(args.random_seed)
 	import sklearn
-	sklearn.utils.check_random_state(args.random_seed)
 	import random
-	random.seed(args.random_seed)
+	#import datetime
+	#start_time = datetime.now()
 	
-	attack_experiment()
+	random_seed_list = [0,1,2,3,4]
+	
+	for this_seed in random_seed_list:
+		torch.manual_seed(args.random_seed)
+		np.random.seed(args.random_seed)
+		sklearn.utils.check_random_state(args.random_seed)
+		random.seed(args.random_seed)
+		#from datetime import datetime
+		attack_experiment()
+		
 	print (vars(args))
+
+	#end_time = datetime.now()
+	#print (start_time,end_time)
+	#print (f"time spent {(end_time-start_time).seconds}")
