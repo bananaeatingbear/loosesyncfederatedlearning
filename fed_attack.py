@@ -1,13 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from utils import *
-from torch.autograd import Variable
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
-from whitebox_attack import *
-from user import *
-from fed_attack_batch import *
 from fed_attack_epoch import *
 
 def fed_gradient_norm_baseline_attack(user_list,model,get_gradient_func=None):

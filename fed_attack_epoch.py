@@ -1,11 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from utils import *
-from torch.autograd import Variable
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
-from whitebox_attack import *
 from user import *
 
 def get_all_user_update_info(user_update_list):

@@ -1,13 +1,6 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from utils import *
-from torch.autograd import Variable
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
-from whitebox_attack import *
-from user import *
-from fed_attack_epoch import *
 import torch.nn.functional as F
 
 def get_all_info_per_instance(instance_grad, user_grad, batch_size=100,user_total_instance=4000,best_layer=None,test_rank=False,whole_nn=False):
@@ -17,27 +10,6 @@ def get_all_info_per_instance(instance_grad, user_grad, batch_size=100,user_tota
 	## we need to extend user_grad to the same shape..
 	## user total instance here means the total number of instance that used to produce this user_grad, for epoch case, this is args.target_data_size
 	### for batch case, this should be just args.target_batch_size
-	
-	#if (best_layer!=None):
-		# just calculate the statistics for the best layer to reduce computational cost
-	#	user_grad = [user_grad[best_layer]]
-	#	instance_grad = [instance_grad[best_layer]]
-	
-	#device = torch.device("cuda",1) ### this is for multi-gpu implementation
-	#instance_grad = instance_grad.to(device)
-	#user_grad = user_grad.to(device)
-	
-	###
-	#print (f"batch-size{batch_size}")
-	#print (len(instance_grad))
-	#for p in instance_grad:
-	#	print (p[0].size())
-	#for p in instance_grad[0]:
-	#	print (p.size())
-	#print (len(user_grad))
-	#for p in user_grad:
-	#	print (p.size())
-	
 	
 	device = torch.device("cuda", 0)
 	norm_choice=1

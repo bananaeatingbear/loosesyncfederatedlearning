@@ -65,7 +65,7 @@ class part_pytorch_dataset(data.Dataset):
 
 
 class dataset():
-	def __init__(self,dataset_name,gpu,membership_attack_number,cutout=False,n_holes=1,length=16,server_name=''):
+	def __init__(self,dataset_name,gpu,membership_attack_number,cutout=False,n_holes=1,length=16,path=None):
 		self.dataset_name = dataset_name
 		self.gpu = gpu
 		self.membership_attack_number = membership_attack_number
@@ -73,133 +73,55 @@ class dataset():
 		self.n_holes=n_holes
 		self.length=length
 		
-		if (server_name == 'ramos'):
-			
-			if (dataset_name == 'skin299'):
-				self.train_data = np.load('/homes/li2829/scratch/fed/fed_data/skin_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/homes/li2829/scratch/fed/fed_data/skin_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/homes/li2829/scratch/fed/fed_data/skin_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/homes/li2829/scratch/fed/fed_data/skin_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0)
-
-			if (dataset_name == 'chest299'):
-				self.train_data = np.load('/homes/li2829/scratch/fed/fed_data/chest_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/homes/li2829/scratch/fed/fed_data/chest_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/homes/li2829/scratch/fed/fed_data/chest_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/homes/li2829/scratch/fed/fed_data/chest_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0)
-
-			if (dataset_name == 'covid299'):
-				self.train_data = np.load('/homes/li2829/scratch/fed/fed_data/covid_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/homes/li2829/scratch/fed/fed_data/covid_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/homes/li2829/scratch/fed/fed_data/covid_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/homes/li2829/scratch/fed/fed_data/covid_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0)
-
-			if (dataset_name == 'retina299'):
-				self.train_data = np.load('/homes/li2829/scratch/fed/fed_data/retina_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/homes/li2829/scratch/fed/fed_data/retina_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/homes/li2829/scratch/fed/fed_data/retina_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/homes/li2829/scratch/fed/fed_data/retina_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0)
-				
-
-			if (dataset_name == 'kidney299'):
-				self.train_data = np.load('/homes/li2829/scratch/fed/fed_data/kidney_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/homes/li2829/scratch/fed/fed_data/kidney_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/homes/li2829/scratch/fed/fed_data/kidney_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/homes/li2829/scratch/fed/fed_data/kidney_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0)
-		
-		elif (gpu):
+		if (gpu):
 			
 			if (dataset_name == 'kidney'):
-				self.train_data = np.load('/home/lijiacheng/dataset/kidney_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/kidney_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/kidney_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/kidney_test_label.npy').astype(np.int64)
+				self.train_data = np.load(path + 'kidney_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path + 'kidney_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path + 'kidney_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path + 'kidney_test_label.npy').astype(np.int64)
 				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
 				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
-				
-			if (dataset_name == 'kidney299'):
-				self.train_data = np.load('/home/lijiacheng/dataset/kidney_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/kidney_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/kidney_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/kidney_test_label_299.npy').astype(np.int64)
+			
+			if (dataset_name == 'skin'):
+				self.train_data = np.load(path + 'skin_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path + 'skin_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path + 'skin_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path + 'skin_test_label.npy').astype(np.int64)
+				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
+				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
+
+			if (dataset_name == 'chest'):
+				self.train_data = np.load(path+'chest_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path+'chest_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path+'chest_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path+'chest_test_label.npy').astype(np.int64)
 				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
 				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
 				#print (self.train_label.shape,self.test_label.shape)
-			
-			if (dataset_name == 'skin'):
-				self.train_data = np.load('/home/lijiacheng/dataset/skin_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/skin_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/skin_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/skin_test_label.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
-
-			if (dataset_name == 'skin299'):
-				self.train_data = np.load('/home/lijiacheng/dataset/skin_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/skin_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/skin_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/skin_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0)
-				
-			if (dataset_name == 'chest'):
-				self.train_data = np.load('/home/lijiacheng/dataset/chest_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/chest_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/chest_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/chest_test_label.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
-				print (self.train_label.shape,self.test_label.shape)
-				
-
-			if (dataset_name == 'chest299'):
-				self.train_data = np.load('/home/lijiacheng/dataset/chest_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/chest_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/chest_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/chest_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
-				print (self.train_label.shape,self.test_label.shape)
+		
 			
 			if (dataset_name == 'cifar100'):
-				self.train_data = np.load('/home/lijiacheng/dataset/cifar100_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/cifar100_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/cifar100_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/cifar100_test_label.npy').astype(np.int64)
+				self.train_data = np.load(path+'cifar100_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path+'cifar100_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path+'cifar100_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path+'cifar100_test_label.npy').astype(np.int64)
 				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
 				self.label = np.concatenate((self.train_label,self.test_label),axis=0)
 			
 			if (dataset_name == 'covid'):
-				self.train_data = np.load('/home/lijiacheng/dataset/covid_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/covid_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/covid_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/covid_test_label.npy').astype(np.int64)
+				self.train_data = np.load(path+'covid_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path+'covid_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path+'covid_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path+'covid_test_label.npy').astype(np.int64)
 				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
 				self.label = np.concatenate((self.train_label,self.test_label),axis=0).astype(np.int64)
 				
-
-			if (dataset_name == 'covid299'):
-				self.train_data = np.load('/home/lijiacheng/dataset/covid_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/covid_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/covid_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/covid_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label,self.test_label),axis=0).astype(np.int64)
-			
 			if (dataset_name == 'retina'):
-				self.train_data = np.load('/home/lijiacheng/dataset/retina_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/retina_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/retina_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/retina_test_label.npy').astype(np.int64)
+				self.train_data = np.load(path+'retina_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path+'retina_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path+'retina_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path+'retina_test_label.npy').astype(np.int64)
 				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
 				self.label = np.concatenate((self.train_label,self.test_label),axis=0).astype(np.int64)
 
@@ -212,43 +134,20 @@ class dataset():
 				
 				print (self.data.shape,self.label.shape)
 			
-			if (dataset_name == 'retina299'):
-				self.train_data = np.load('/home/lijiacheng/dataset/retina_train_data_299.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/retina_train_label_299.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/retina_test_data_299.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/retina_test_label_299.npy').astype(np.int64)
-				self.data = np.concatenate((self.train_data, self.test_data), axis=0).astype(np.uint8)
-				self.label = np.concatenate((self.train_label, self.test_label), axis=0).astype(np.int64)
-				
-				train_index = np.random.choice(len(self.data), 32000, replace=False)
-				test_index = np.setdiff1d(np.arange(len(self.data)), train_index)
-				self.train_data = self.data[train_index]
-				self.train_label = self.label[train_index]
-				self.test_data = self.data[test_index]
-				self.test_label = self.label[test_index]
-				
-				print(self.data.shape, self.label.shape)
 			
 			if (dataset_name == 'cifar10'):
-				self.train_data = np.load('/home/lijiacheng/dataset/cifar10_train_data.npy').astype(np.uint8)
-				self.train_label = np.load('/home/lijiacheng/dataset/cifar10_train_label.npy').astype(np.int64)
-				self.test_data = np.load('/home/lijiacheng/dataset/cifar10_test_data.npy').astype(np.uint8)
-				self.test_label = np.load('/home/lijiacheng/dataset/cifar10_test_label.npy').astype(np.int64)
+				self.train_data = np.load(path+'cifar10_train_data.npy').astype(np.uint8)
+				self.train_label = np.load(path+'cifar10_train_label.npy').astype(np.int64)
+				self.test_data = np.load(path+'cifar10_test_data.npy').astype(np.uint8)
+				self.test_label = np.load(path+'cifar10_test_label.npy').astype(np.int64)
 				self.data = np.concatenate((self.train_data,self.test_data),axis=0).astype(np.uint8)
 				self.label = np.concatenate((self.train_label,self.test_label),axis=0).astype(np.int64)
-				#print (len(self.label))
-				#train_index = np.random.choice(len(self.data),50000,replace=False)
-				#test_index = np.setdiff1d(np.arange(len(self.data)),train_index)
-				#self.train_data = self.data[train_index]
-				#self.train_label = self.label[train_index]
-				#self.test_data = self.data[test_index]
-				#self.test_label = self.label[test_index]
-			
+				
 			if (dataset_name == 'texas'):
-				self.train_data = np.load('/home/lijiacheng/dataset/texas_train_data.npy')
-				self.train_label = np.load('/home/lijiacheng/dataset/texas_train_label.npy')-1
-				self.test_data = np.load('/home/lijiacheng/dataset/texas_test_data.npy')
-				self.test_label = np.load('/home/lijiacheng/dataset/texas_test_label.npy')-1
+				self.train_data = np.load(path+'texas_train_data.npy')
+				self.train_label = np.load(path+'texas_train_label.npy')-1
+				self.test_data = np.load(path+'texas_test_data.npy')
+				self.test_label = np.load(path+'texas_test_label.npy')-1
 				self.data = np.concatenate((self.train_data, self.test_data), axis=0)
 				self.label = np.concatenate((self.train_label, self.test_label), axis=0).astype(np.int64)
 				self.label = np.squeeze(self.label)
@@ -266,10 +165,10 @@ class dataset():
 				print (self.train_data.shape,self.train_label.shape,self.test_data.shape,self.test_label.shape)
 			
 			if (dataset_name == 'purchase'):
-				self.train_data = np.load('/home/lijiacheng/dataset/purchase_train_data.npy')
-				self.train_label = np.load('/home/lijiacheng/dataset/purchase_train_label.npy')-1
-				self.test_data = np.load('/home/lijiacheng/dataset/purchase_test_data.npy')
-				self.test_label = np.load('/home/lijiacheng/dataset/purchase_test_label.npy')-1
+				self.train_data = np.load(path+'purchase_train_data.npy')
+				self.train_label = np.load(path+'purchase_train_label.npy')-1
+				self.test_data = np.load(path+'purchase_test_data.npy')
+				self.test_label = np.load(path+'purchase_test_label.npy')-1
 				self.data = np.concatenate((self.train_data, self.test_data), axis=0)
 				self.label = np.concatenate((self.train_label, self.test_label), axis=0).astype(np.int64)
 				

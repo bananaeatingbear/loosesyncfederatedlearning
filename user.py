@@ -1,6 +1,5 @@
 import numpy as np
 
-from whitebox_attack import *
 from blackbox_attack import *
 from data import dataset
 from model import *
