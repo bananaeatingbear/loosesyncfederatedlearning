@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="SshConfigs">
-    <configs>
-      <sshConfig authType="PASSWORD" host="eva1.cs.purdue.edu" id="e40fc1df-0f55-4570-9cce-f3b58fb194ef" port="22" nameFormat="DESCRIPTIVE" username="lijiacheng" useOpenSSHConfig="true" />
-    </configs>
-  </component>
-</project>
